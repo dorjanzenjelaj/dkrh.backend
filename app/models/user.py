@@ -55,4 +55,7 @@ class User(Base, TimestampMixin):
         foreign_keys="Session.user_id",
     )
     security_audit_logs = relationship("SecurityAuditLog", back_populates="user")
-    activity_logs = relationship("ActivityLog", foreign_keys="ActivityLog.actor_user_id")
+    activity_logs = relationship(
+        "ActivityLog",
+        foreign_keys="ActivityLog.actor_user_id",
+    )

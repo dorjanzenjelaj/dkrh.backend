@@ -4,6 +4,7 @@ from app.models.role_permission import RolePermission
 from app.models.user import User
 from app.models.session import Session
 from app.models.security_audit_log import SecurityAuditLog
+from app.models.activity_log import ActivityLog
 
 __all__ = [
     "Role",
@@ -12,4 +13,5 @@ __all__ = [
     "User",
     "Session",
     "SecurityAuditLog",
+    "ActivityLog",
 ]
