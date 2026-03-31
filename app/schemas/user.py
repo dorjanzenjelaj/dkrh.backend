@@ -51,3 +51,7 @@ class UserUpdateRequest(BaseModel):
 class UserActionResponse(BaseModel):
     id: str
     message: str
+
+class UserResetPasswordRequest(BaseModel):
+    new_password: str = Field(min_length=8, max_length=128)
+    must_change_password: bool = True

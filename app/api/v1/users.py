@@ -18,6 +18,12 @@ from app.schemas.user import (
     UserListResponse,
     UserUpdateRequest,
 )
+
+from app.models.session import Session as UserSession
+from app.schemas.session import UserSessionItem, UserSessionsResponse
+from app.schemas.user import UserResetPasswordRequest
+from datetime import datetime, timezone
+
 from app.services.activity_log_service import log_activity
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -266,7 +272,7 @@ def update_user(
     user.updated_by = current_user.id
 
     role_code = user.role.code if user.role else None
-    
+
     log_activity(
         db,
         actor=current_user,
@@ -351,4 +357,145 @@ def deactivate_user(
     return UserActionResponse(
         id=str(user.id),
         message="User deactivated successfully",
+    )
+
+
+
+@router.post("/{user_id}/reset-password", response_model=UserActionResponse)
+def reset_user_password(
+    user_id: uuid.UUID,
+    payload: UserResetPasswordRequest,
+    request: Request,
+    current_user: User = Depends(require_permission("users.reset_password")),
+    db: Session = Depends(get_db),
+):
+    user = db.execute(
+        select(User).options(joinedload(User.role)).where(
+            User.id == user_id,
+            User.deleted_at.is_(None),
+        )
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.password_hash = hash_password(payload.new_password)
+    user.must_change_password = payload.must_change_password
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.updated_by = current_user.id
+
+    log_activity(
+        db,
+        actor=current_user,
+        action_type="user_password_reset",
+        entity_type="user",
+        entity_id=str(user.id),
+        entity_label=user.username,
+        route=str(request.url.path),
+        method=request.method,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        metadata_json={
+            "must_change_password": payload.must_change_password,
+        },
+    )
+
+    db.commit()
+    db.refresh(user)
+
+    return UserActionResponse(
+        id=str(user.id),
+        message="Password reset successfully",
+    )
+
+
+@router.get("/{user_id}/sessions", response_model=UserSessionsResponse)
+def list_user_sessions(
+    user_id: uuid.UUID,
+    _: User = Depends(require_permission("sessions.view_all")),
+    db: Session = Depends(get_db),
+):
+    user = db.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    sessions = db.execute(
+        select(UserSession)
+        .where(UserSession.user_id == user_id)
+        .order_by(UserSession.created_at.desc())
+    ).scalars().all()
+
+    items = [
+        UserSessionItem(
+            id=str(s.id),
+            is_active=s.is_active,
+            login_ip=s.login_ip,
+            last_seen_ip=s.last_seen_ip,
+            user_agent=s.user_agent,
+            created_at=s.created_at.isoformat(),
+            expires_at=s.expires_at.isoformat() if s.expires_at else None,
+            last_seen_at=s.last_seen_at.isoformat() if s.last_seen_at else None,
+            revoked_at=s.revoked_at.isoformat() if s.revoked_at else None,
+        )
+        for s in sessions
+    ]
+
+    return UserSessionsResponse(
+        items=items,
+        total=len(items),
+    )
+
+
+@router.post("/{user_id}/force-logout", response_model=UserActionResponse)
+def force_logout_user(
+    user_id: uuid.UUID,
+    request: Request,
+    current_user: User = Depends(require_permission("users.force_logout")),
+    db: Session = Depends(get_db),
+):
+    user = db.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    active_sessions = db.execute(
+        select(UserSession).where(
+            UserSession.user_id == user_id,
+            UserSession.is_active.is_(True),
+            UserSession.revoked_at.is_(None),
+        )
+    ).scalars().all()
+
+    count = 0
+    for s in active_sessions:
+        s.is_active = False
+        s.revoked_at = datetime.now(timezone.utc)
+        s.revoked_by = current_user.id
+        count += 1
+
+    log_activity(
+        db,
+        actor=current_user,
+        action_type="user_force_logout",
+        entity_type="user",
+        entity_id=str(user.id),
+        entity_label=user.username,
+        route=str(request.url.path),
+        method=request.method,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        metadata_json={"revoked_sessions": count},
+    )
+
+    db.commit()
+
+    return UserActionResponse(
+        id=str(user.id),
+        message=f"Force logout completed. Revoked {count} session(s).",
     )
