@@ -38,7 +38,6 @@ class ActivityLog(Base):
         nullable=False,
         index=True,
     )
-
     actor_user = relationship(
         "User",
         back_populates="activity_logs",

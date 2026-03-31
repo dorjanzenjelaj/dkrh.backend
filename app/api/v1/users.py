@@ -2,9 +2,14 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, joinedload
+
 from app.core.enums import UserStatus
 from app.core.security import hash_password
+from app.dependencies.db import get_db
+from app.dependencies.rbac import require_permission
 from app.models.role import Role
+from app.models.user import User
 from app.schemas.user import (
     UserActionResponse,
     UserCreateRequest,
