@@ -39,4 +39,8 @@ class ActivityLog(Base):
         index=True,
     )
 
-    actor_user = relationship("User")
+    actor_user = relationship(
+        "User",
+        back_populates="activity_logs",
+        foreign_keys=[actor_user_id],
+    )

@@ -57,5 +57,6 @@ class User(Base, TimestampMixin):
     security_audit_logs = relationship("SecurityAuditLog", back_populates="user")
     activity_logs = relationship(
         "ActivityLog",
+        back_populates="actor_user",
         foreign_keys="ActivityLog.actor_user_id",
     )
