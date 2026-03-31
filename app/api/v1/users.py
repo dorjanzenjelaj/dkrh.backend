@@ -168,8 +168,6 @@ def create_user(
     )
 
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
 
     log_activity(
         db,
@@ -192,6 +190,12 @@ def create_user(
             "is_super_admin": new_user.is_super_admin,
         },
     )
+
+
+    db.commit()
+    db.refresh(new_user)
+
+    
 
     return UserActionResponse(
         id=str(new_user.id),
@@ -260,11 +264,9 @@ def update_user(
         user.is_super_admin = payload.is_super_admin
 
     user.updated_by = current_user.id
-    db.commit()
-    db.refresh(user)
 
     role_code = user.role.code if user.role else None
-
+    
     log_activity(
         db,
         actor=current_user,
@@ -286,6 +288,11 @@ def update_user(
             "is_super_admin": user.is_super_admin,
         },
     )
+
+    db.commit()
+    db.refresh(user)
+
+    
 
     return UserActionResponse(
         id=str(user.id),
@@ -320,8 +327,7 @@ def deactivate_user(
 
     user.status = UserStatus.INACTIVE.value
     user.updated_by = current_user.id
-    db.commit()
-    db.refresh(user)
+
 
     log_activity(
         db,
@@ -337,6 +343,10 @@ def deactivate_user(
         before_json=before_json,
         after_json={"status": user.status},
     )
+
+    db.commit()
+    db.refresh(user)
+
 
     return UserActionResponse(
         id=str(user.id),

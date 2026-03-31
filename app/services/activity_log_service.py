@@ -37,4 +37,3 @@ def log_activity(
             metadata_json=metadata_json,
         )
     )
-    db.commit()
