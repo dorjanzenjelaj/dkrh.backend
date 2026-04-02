@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.dependencies.auth import get_current_user
 from app.dependencies.db import get_db
 from app.models.user import User
 from app.schemas.auth import LoginRequest, MeResponse, TokenResponse
@@ -11,8 +10,6 @@ from app.services.auth_service import (
     log_security_event,
     refresh_user_session
 )
-from app.services.auth_service import hash_token
-
 
 from datetime import datetime, timezone
 
@@ -22,7 +19,8 @@ from app.schemas.auth import RefreshTokenRequest, TokenPairResponse
 
 
 from app.schemas.session import UserSessionItem, UserSessionsResponse
-
+from sqlalchemy import select
+from app.dependencies.auth import get_current_user, get_current_session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

@@ -15,10 +15,10 @@ from app.services.auth_service import hash_token
 bearer_scheme = HTTPBearer(auto_error=True)
 
 
-def get_current_user(
+def get_current_session(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
-) -> User:
+) -> UserSession:
     token = credentials.credentials
 
     try:
@@ -56,6 +56,7 @@ def get_current_user(
         not session
         or not session.is_active
         or session.revoked_at is not None
+        or session.expires_at is None
         or session.expires_at < now
     ):
         raise HTTPException(
@@ -63,9 +64,18 @@ def get_current_user(
             detail="Session expired or revoked",
         )
 
+    return session
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    session = get_current_session(credentials=credentials, db=db)
+
     user = db.execute(
         select(User).where(
-            User.id == user_id,
+            User.id == session.user_id,
             User.deleted_at.is_(None),
         )
     ).scalar_one_or_none()
